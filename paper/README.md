@@ -36,3 +36,9 @@ Or with `latexmk`:
 ```bash
 latexmk -pdf main.tex
 ```
+
+---
+
+## Video Demonstration
+The recorded operational demonstration of the physical AM-CRN glove prototype (displaying 5-digit Coordinated Reset actuation, real-time kinematic gating, and hardware testbed behavior) is accessible at:
+- **Google Drive Video Demonstration**: [AM-CRN Video Demonstration](https://drive.google.com/drive/folders/1uONN4YGhQNZigE1ExzX5zXttHGENcdZQ?usp=sharing)
