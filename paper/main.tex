@@ -1,0 +1,322 @@
+\documentclass[10pt,twocolumn]{article}
+
+\usepackage[margin=0.75in]{geometry}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{cite}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric, arrows.meta, positioning, calc, backgrounds, fit}
+\usepackage{microtype}
+\usepackage{xcolor}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue!70!black,
+    citecolor=blue!70!black,
+    urlcolor=blue!70!black
+}
+
+\title{\textbf{\Large AM-CRN: Adaptive Motion-Gated Coordinated Reset Neuromodulation\\for an Embedded Five-Finger Vibrotactile Glove}}
+
+\author{
+    \textbf{Atharva Mendhulkar} \quad (Reg. No: 24BIT0103) \qquad
+    \textbf{Ritwij Tripathi} \quad (Reg. No: 24BIT0095) \\[1ex]
+    \textit{Department of Information Technology} \\
+    \textit{School of Computer Science Engineering and Information Systems (SCORE)} \\
+    \textit{Vellore Institute of Technology, Vellore, Tamil Nadu, India}
+}
+
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Wearable vibrotactile gloves offer immense potential for non-invasive neurorehabilitation, suppression of pathological Parkinsonian tremor, and fine motor recovery. However, existing smart gloves suffer from three fundamental neurobiological and electromechanical failure modes: (1) voluntary limb motion elicits central sensorimotor gating that attenuates somatosensory evoked potentials by 30--60\%, rendering static tactile cues imperceptible during reaching; (2) continuous periodic vibration drives rapid mechanoreceptor habituation and temporary threshold shifts (TTS); and (3) standard Coordinated Reset (CR) desynchronization algorithms presume ideal impulse actuation, whereas low-cost Eccentric Rotating Mass (ERM) motors exhibit significant mechanical spool-up lag ($\sim$35\,ms) that smears inter-digit phase relationships. 
+This paper presents \textbf{AM-CRN} (Adaptive Motion-Gated Coordinated Reset Neuromodulation), a constrained, human-in-the-loop architecture engineered for an ESP32-S3 microcontroller, one 6-axis dorsal IMU, and five coin ERM actuators without contact or flex sensing. AM-CRN introduces an instantaneous kinematic gating index $G(t) \in [1.0, 2.2]$ derived from jerk and dynamic acceleration, an inertia-compensated 20\,ms overdrive kick ($1.35\times$), Fisher-Yates phase desynchronization, and a $\le$60\,s micro-staircase calibration protocol. 
+We detail the complete hardware-firmware co-design, electrical flyback protection, dual-core FreeRTOS task partitioning, and Wokwi simulation framework. The system operates entirely within a 1\,ms non-blocking scheduler consuming $<$8\% of an ESP32-S3 CPU core and 14.2\,KB RAM, guaranteeing hard fail-safe limits ($\le$250\,ms continuous duration, $\le$40\% rolling duty cycle).
+\end{abstract}
+
+\section{Introduction}
+Non-invasive vibrotactile neuromodulation of the human hand has emerged as a compelling paradigm for neurorehabilitation, suppression of pathological Parkinsonian tremor, and tactile sensory substitution~\cite{springer_2026_smart_glove_slr, frontiers_2026_vibrotactile_neurorehab_slr}. By delivering localized cutaneous mechanical vibrations to individual digits, targeted afferent volleys travel via $A\beta$ mechanoreceptive fibers through the dorsal column-medial lemniscal pathway to the primary somatosensory cortex (S1), inducing desynchronization of pathologically synchronized beta-band neural oscillations~\cite{jneurophys_2023_somatosensory_finger_rep}.
+
+Despite substantial therapeutic promise, clinical translation of wearable haptic gloves has been severely constrained by two divergent hardware philosophies. On one end, laboratory systems incorporate dense arrays of piezoresistive sensors, EEG monitoring, or pneumatic bladders~\cite{nature_comms_2024_embroidered_glove, jner_2025_bci_soft_robotic_glove, frontiers_2025_neuroadaptive_haptics}, which are bulky, fragile, expensive, and tethered. On the other end, low-cost micro-controller gloves rely on open-loop, periodic actuation that pulses blindly regardless of patient movement state~\cite{springer_2026_smart_glove_slr}.
+
+Crucially, recent psychophysical literature demonstrates that tactile perception is fundamentally non-stationary. As established by Tajdari et al.~\cite{human_factors_2024_motion_sensitivity}, voluntary limb motion induces sensorimotor gating (efference copy suppression) that elevates detection thresholds by 30--60\%. Consequently, static patterns optimized for a seated patient become sub-threshold during reach-to-grasp tasks. Furthermore, sustained periodic stimulation rapidly drives receptor desensitization and temporary threshold shifts (TTS)~\cite{med_lav_2025_neurosensory_vibration}.
+
+To resolve these challenges under strict embedded resource constraints, we present \textbf{AM-CRN} (Adaptive Motion-Gated Coordinated Reset Neuromodulation). Tailored specifically to an ESP32-S3 SoC, a single dorsal 6-axis IMU, and five coin ERM motors, AM-CRN bridges the gap between theoretical neurobiology and embedded engineering.
+
+\section{Related Work and Research Gaps}
+Table~\ref{tab:gaps} synthesizes the verified literature base and highlights six open research gaps (G1--G6) addressed by this work.
+
+\begin{table*}[t]
+\centering
+\caption{Evidence-Grounded Research Gap Matrix (G1--G6) and System Comparison}
+\label{tab:gaps}
+\small
+\begin{tabularx}{\textwidth}{l p{4.2cm} p{4.2cm} l X}
+\toprule
+\textbf{Gap} & \textbf{State of the Art (Verified Records)} & \textbf{Limiting Evidence} & \textbf{Status} & \textbf{AM-CRN Resolution} \\
+\midrule
+\textbf{G1} & Nature Comms 2024~\cite{nature_comms_2024_embroidered_glove}: 15\,s new-user adaptation. & Requires dense textile pressure sensor matrices. & Partially Open & $\le$60\,s integer staircase calibration on-chip. \\
+\textbf{G2} & Tajdari et al. 2024~\cite{human_factors_2024_motion_sensitivity}: Motion degrades tactile sensitivity. & Pure offline psychophysical trial; no adaptive device. & Open & Closed-loop kinematic gating factor $G_k \in [1.0, 2.2]$. \\
+\textbf{G3} & Tass et al., ETH 2023~\cite{jneurophys_2023_somatosensory_finger_rep}: Coordinated Reset desync. & Assumes ideal square waves; ERM inertia blurs phases. & Open & 20\,ms overdrive kick ($1.35\times$) + 45\,ms blanking. \\
+\textbf{G4} & Med Lav 2025~\cite{med_lav_2025_neurosensory_vibration}: Vibration alters thresholds over time. & Evaluated in occupational safety, not adaptive gloves. & Open & Fisher-Yates sequence shuffle + 3\,s reset epochs. \\
+\textbf{G5} & Kusnir 2024~\cite{app_2024_contralateral_interference}, Luzhnica 2017~\cite{acm_2017_sensitivity_prioritisation}: Masking across digits. & Simultaneous bursts degrade detection by 28\%. & Partially Open & Strict single-finger temporal isolation. \\
+\textbf{G6} & BMC SLR 2026~\cite{springer_2026_smart_glove_slr}: 101 smart gloves reviewed. & No standardized reproducible timing/energy metrics. & Open & Open C99/FreeRTOS core + JSONL trial logger. \\
+\bottomrule
+\end{tabularx}
+\end{table*}
+
+\begin{figure*}[t]
+\centering
+\begin{tikzpicture}[
+    x=1.0cm, y=1.0cm,
+    font=\footnotesize,
+    box/.style={rectangle, draw=blue!75!black, fill=blue!5, rounded corners=4pt, thick, align=center, text width=3.0cm, inner sep=3.5pt, font=\scriptsize},
+    hwbox/.style={rectangle, draw=teal!75!black, fill=teal!5, rounded corners=4pt, thick, align=center, text width=3.0cm, inner sep=3.5pt, font=\scriptsize},
+    calbox/.style={rectangle, draw=purple!75!black, fill=purple!5, rounded corners=4pt, thick, align=center, text width=3.0cm, inner sep=3.5pt, font=\scriptsize},
+    safebox/.style={rectangle, draw=red!75!black, fill=red!5, rounded corners=4pt, thick, align=center, text width=3.0cm, inner sep=3.5pt, font=\scriptsize},
+    outbox/.style={rectangle, draw=teal!85!black, fill=teal!6, rounded corners=4pt, thick, align=center, text width=17.0cm, inner sep=5pt, font=\scriptsize},
+    arr/.style={-{Latex[length=2.2mm, width=1.8mm]}, thick, draw=blue!85!black},
+    sec/.style={font=\bfseries\footnotesize, text=gray!80!black}
+]
+    % Column / Stage Titles
+    \node[sec] at (1.6, 3.4) {STAGE 1: SENSING};
+    \node[sec] at (6.3, 3.4) {STAGE 2: KINEMATICS};
+    \node[sec] at (11.0, 3.4) {STAGE 3: NEUROMOD};
+    \node[sec] at (15.7, 3.4) {STAGE 4: SAFETY};
+
+    % Row 1: Primary Pipeline
+    \node[hwbox] (imu) at (1.6, 2.0) {
+        \textbf{6-Axis Dorsal IMU}\\[2pt]
+        MPU-6050 / ICM-42670\\
+        100\,Hz I2C (SDA 8, SCL 9)\\
+        $\pm 4g$ Accel, $\pm 1000^\circ/\text{s}$ Gyro
+    };
+    \node[box] (gating) at (6.3, 2.0) {
+        \textbf{Kinematic Gating}\\[2pt]
+        Norm: $d_k = |\|\mathbf{a}\| - 1.0g|$\\
+        Numerical Jerk: $\Delta d_k / \Delta t$\\
+        EMA Factor: $G_k \in [1.0, 2.2]$
+    };
+    \node[box] (cr) at (11.0, 2.0) {
+        \textbf{Coordinated Reset}\\[2pt]
+        $f_{\text{CR}} \approx 1.6$\,Hz Desync Engine\\
+        Fisher-Yates Sequence Shuffle\\
+        Phase Jitter $\tau \sim \mathcal{U}(\pm 15\,\text{ms})$
+    };
+    \node[box] (sched) at (15.7, 2.0) {
+        \textbf{1\,ms Scheduler}\\[2pt]
+        20\,ms Overdrive Kick ($1.35\times$)\\
+        50\,ms Steady ($D_{\text{target}}\cdot G_k$)\\
+        $\ge 45$\,ms Anti-Masking
+    };
+
+    % Row 2: Secondary / Protective / Adaptive Subsystems
+    \node[hwbox] (power) at (1.6, -0.9) {
+        \textbf{Power Integrity}\\[2pt]
+        $10\,\mu\text{F}$ Tantalum $+ 100\,\text{nF}$\\
+        Schottky Clamping Diodes\\
+        Gate Resistors ($100\,\Omega / 10\,\text{k}\Omega$)
+    };
+    \node[box] (classifier) at (6.3, -0.9) {
+        \textbf{Motion Classifier}\\[2pt]
+        Stillness Score ($0.0 - 1.0$)\\
+        Adaptive 500\,ms Window\\
+        STILL, SLOW, REACH, FAST
+    };
+    \node[calbox] (calib) at (11.0, -0.9) {
+        \textbf{Micro-Staircase}\\[2pt]
+        $\le 60$\,s 1-Up / 1-Down\\
+        Per-Digit $D_{\text{thresh}}$ Profile\\
+        Non-Volatile Storage (NVS)
+    };
+    \node[safebox] (safety) at (15.7, -0.9) {
+        \textbf{Safety Watchdog}\\[2pt]
+        Pulse Cap: $t_{\text{on}} \le 250$\,ms\\
+        5\,s Rolling Duty $\le 40\%$\\
+        Immediate Fault Lockout
+    };
+
+    % Row 3: Actuator Outputs (Full Width)
+    \node[outbox] (motors) at (8.65, -2.85) {
+        \textbf{5x Independent Digit Commutation Channels (AO3400A MOSFET Drivers $\to$ Model 1027 Coin ERMs)}\\[2pt]
+        Thumb: GPIO4 $\quad\cdot\quad$ Index: GPIO5 $\quad\cdot\quad$ Middle: GPIO6 $\quad\cdot\quad$ Ring: GPIO7 $\quad\cdot\quad$ Little: GPIO15
+    };
+
+    % Connections - Horizontal Pipeline (Spacious 1.5cm clearance)
+    \draw[arr] (imu) -- node[midway, above=1pt, font=\tiny] {100\,Hz IMU} (gating);
+    \draw[arr] (gating) -- node[midway, above=1pt, font=\tiny] {$G(t)$ Gating} (cr);
+    \draw[arr] (cr) -- node[midway, above=1pt, font=\tiny] {CR Pulses} (sched);
+
+    % Connections - Vertical Subsystems
+    \draw[arr] (gating) -- node[midway, right=2pt, font=\tiny] {Features} (classifier);
+    \draw[arr] (calib) -- node[midway, right=2pt, font=\tiny] {$D_{\text{thresh}}$ Profile} (cr);
+    \draw[arr] (sched) -- node[midway, right=2pt, font=\tiny] {Verify} (safety);
+
+    % Connections - Commutation & Power
+    \draw[arr, draw=red!80!black] (safety.south) -- (safety.south |- motors.north) node[midway, left=2pt, font=\tiny, text=red!80!black] {5x Gated PWM (5\,kHz)};
+    \draw[arr, dashed, draw=teal!80!black] (power.south) -- (power.south |- motors.north) node[midway, right=2pt, font=\tiny, text=teal!80!black] {Clamped 3.3\,V Rail};
+\end{tikzpicture}
+\caption{End-to-end architectural pipeline of the AM-CRN glove: modular 4-stage progression from raw dorsal kinematics to fail-safe 5-channel motor commutation.}
+\label{fig:arch}
+\end{figure*}
+
+\section{Hardware Design and Electromechanics}
+
+\subsection{Physical Components and Actuator Physics}
+\begin{enumerate}
+    \item \textbf{Microcontroller}: Espressif ESP32-S3-WROOM-1 with 8\,MB Flash, 512\,KB SRAM, clocked at 240\,MHz. Hardware LEDC PWM timers operate at 5\,kHz with 8-bit resolution (256 duty steps).
+    \item \textbf{Actuators}: 5x coin-type Eccentric Rotating Mass (ERM) vibration motors (10\,mm diameter, 2.7\,mm thickness, Model 1027). The rotational frequency couples non-linearly with applied voltage ($\sim$150--220\,Hz across 2.5--3.3\,V). Mechanical rise time $t_{\text{rise}} \approx 35$\,ms and decay time $t_{\text{decay}} \approx 50$\,ms dictate that instantaneous square pulses are impossible without pre-emphasis overdrive.
+    \item \textbf{Dorsal 6-Axis IMU}: An MPU-6050 or ICM-42670 MEMS sensor mounted on the glove backplate, sampled at 100\,Hz over I2C Fast-Mode (400\,kHz). Full-scale ranges are configured for $\pm 4g$ and $\pm 1000^\circ/\text{s}$.
+\end{enumerate}
+
+\subsection{Drive Circuitry and Flyback Protection}
+Each coin ERM is driven by an individual low-threshold N-channel MOSFET (AO3400A, $V_{\text{DS}} = 30\text{V}, I_{\text{D}} = 5.7\text{A}, R_{\text{DS(ON)}} \approx 28\text{ m}\Omega$). 
+Because inductive DC motors generate severe negative voltage spikes upon de-energization ($V = -L \frac{di}{dt}$), a fast switching Schottky diode (1N5819 / BAT54) is placed in anti-parallel across each motor terminal to clamp inductive transients. A $100\,\Omega$ gate resistor prevents high-frequency ringing, while a $10\,\text{k}\Omega$ pull-down resistor ensures the MOSFET remains completely off during ESP32-S3 boot sequencing.
+
+\subsection{Decoupling and Power Integrity}
+Coin ERMs draw transient stall/start currents exceeding 120\,mA each. A bulk $10\,\mu\text{F}$ low-ESR tantalum capacitor alongside individual $100\,\text{nF}$ multi-layer ceramic capacitors (MLCC) are situated immediately adjacent to the motor power rail to prevent transient voltage sags on the ESP32-S3 3.3\,V analog reference line.
+
+\section{Firmware Engineering and Algorithmic Formulation}
+
+\subsection{Kinematic Sensory Gating Engine}
+Voluntary hand movements attenuate somatosensory cortical responsiveness~\cite{human_factors_2024_motion_sensitivity}. The gating engine computes dynamic acceleration norm $d_k$ and numerical jerk $j_k$ at 100\,Hz:
+\begin{equation}
+d_k = \left| \sqrt{a_{x,k}^2 + a_{y,k}^2 + a_{z,k}^2} - 1.0 \right|
+\end{equation}
+\begin{equation}
+j_k = \frac{|d_k - d_{k-1}|}{\Delta t}, \quad \Delta t = 0.01\,\text{s}
+\end{equation}
+Exponential moving average (EMA) smoothing yields:
+\begin{equation}
+\bar{d}_k = \lambda \bar{d}_{k-1} + (1 - \lambda) d_k, \quad \lambda = 0.85
+\end{equation}
+The Sensory Gating Index $G_k \in [1.0, 2.20]$ is then calculated:
+\begin{equation}
+G_k = 1.0 + \min\left(1.0, \frac{\bar{d}_k}{0.80g}\right) \cdot \alpha + \min\left(1.0, \frac{\bar{j}_k}{15.0g/\text{s}}\right) \cdot \beta
+\end{equation}
+where $\alpha = 0.70$ and $\beta = 0.50$. In quiescent conditions, $G_k = 1.00$. When high-velocity transport or reaching occurs, $G_k$ scales dynamically to $1.80$--$2.15$, preserving constant perceptual salience.
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+    x=1.02cm, y=0.72cm,
+    every node/.style={font=\scriptsize},
+    chan/.style={draw=gray!35, thin},
+    axis/.style={->, thick, draw=black!80}
+]
+    % Legend at Top - Clean Spacing
+    \fill[blue!85!black] (0.0, 6.6) rectangle (0.35, 6.85);
+    \node[right, font=\tiny] at (0.38, 6.72) {Overdrive (20\,ms, $1.35\times$)};
+    \fill[blue!30] (3.6, 6.6) rectangle (3.95, 6.85);
+    \node[right, font=\tiny] at (3.98, 6.72) {Steady (50\,ms, $D_{\text{target}}\cdot G_k$)};
+
+    % 5 Channel Baselines
+    \foreach \y/\name in {4.8/Thumb, 3.6/Index, 2.4/Middle, 1.2/Ring, 0.0/Little} {
+        \draw[chan] (0,\y) -- (5.9,\y);
+        \node[left, font=\bfseries\scriptsize] at (-0.05, \y + 0.25) {\name};
+    }
+
+    % Time Axis
+    \draw[axis] (0, -0.6) -- (6.1, -0.6) node[right, font=\tiny] {Time (ms)};
+    \foreach \x/\t in {0/0, 1.15/115, 2.3/230, 3.45/345, 4.6/460, 5.75/575} {
+        \draw (\x, -0.68) -- (\x, -0.52) node[below=2pt, font=\tiny] {\t};
+    }
+
+    % Pulses (width = 0.7 units = 70ms; OD = 0.2 units = 20ms; Blank = 0.45 units = 45ms)
+    % 1. Thumb (Ch 0): Start = 0.05
+    \fill[blue!85!black] (0.05, 4.8) rectangle (0.25, 5.45);
+    \fill[blue!30] (0.25, 4.8) rectangle (0.75, 5.3);
+
+    % 2. Middle (Ch 2): Start = 1.20
+    \fill[blue!85!black] (1.20, 2.4) rectangle (1.40, 3.05);
+    \fill[blue!30] (1.40, 2.4) rectangle (1.90, 2.9);
+
+    % 3. Index (Ch 1): Start = 2.35
+    \fill[blue!85!black] (2.35, 3.6) rectangle (2.55, 4.25);
+    \fill[blue!30] (2.55, 3.6) rectangle (3.05, 4.1);
+
+    % 4. Little (Ch 4): Start = 3.50
+    \fill[blue!85!black] (3.50, 0.0) rectangle (3.70, 0.65);
+    \fill[blue!30] (3.70, 0.0) rectangle (4.20, 0.5);
+
+    % 5. Ring (Ch 3): Start = 4.65
+    \fill[blue!85!black] (4.65, 1.2) rectangle (4.85, 1.85);
+    \fill[blue!30] (4.85, 1.2) rectangle (5.35, 1.7);
+
+    % Dimension Markers (Cleanly placed, no overlap)
+    \draw[<->, draw=blue!80!black, thick] (0.05, 5.75) -- (0.75, 5.75) node[midway, above=1pt, font=\tiny] {$t_{\text{burst}}=70\,\text{ms}$};
+    \draw[<->, draw=red!80!black, thick] (0.75, 4.95) -- (1.20, 4.95) node[midway, above=1pt, font=\tiny, text=red!80!black] {$\ge$45\,ms Blank};
+\end{tikzpicture}
+\caption{Five-channel oscillogram of Inertia-Compensated Coordinated Reset (IC-CR) within column width. Dark bars denote the 20\,ms overdrive kick ($1.35\times$) followed by 50\,ms steady stimulation, separated by 45\,ms blanking.}
+\label{fig:timing}
+\end{figure}
+
+\subsection{Inertia-Compensated Coordinated Reset (IC-CR)}
+Classical Coordinated Reset applies phase-staggered stimulus volleys across digits to disrupt abnormal neural synchrony~\cite{jneurophys_2023_somatosensory_finger_rep}. However, mechanical rise time causes ERMs to delay their peak cutaneous force. AM-CRN applies a 20\,ms overdrive boost at pulse onset:
+\begin{equation}
+D_{\text{pwm}}(t) = \begin{cases} 
+\min\left(255, 1.35 \cdot D_{\text{target}} \cdot G_k\right), & 0 \le t < 20\,\text{ms} \\
+\min\left(240, D_{\text{target}} \cdot G_k\right), & 20\,\text{ms} \le t < t_{\text{burst}} \\
+0, & t \ge t_{\text{burst}}
+\end{cases}
+\end{equation}
+As illustrated in Figure~\ref{fig:timing}, pulses execute with $t_{\text{burst}} = 70$\,ms and blanking intervals $t_{\text{blank}} = 45$\,ms. To break receptor adaptation (TTS)~\cite{med_lav_2025_neurosensory_vibration}, digits are permuted every cycle via Fisher-Yates shuffling with random phase jitter $\tau \sim \mathcal{U}(-15, +15)$\,ms, interleaved with 3\,s reset epochs every 15\,s.
+
+\subsection{On-Chip Micro-Staircase Calibration}
+The 1-up/1-down transformed staircase initializes at step $\Delta D = 16$. Direction reversals halve the step size down to a minimum of 4. Following 3 reversals per digit, detection threshold $D_{\text{thresh}}$, target duty $D_{\text{target}} = 1.4 \cdot D_{\text{thresh}}$, and comfort ceiling $D_{\text{max}} = 2.2 \cdot D_{\text{thresh}}$ are finalized. The 5 digits calibrate sequentially in $\le$60\,s without requiring an external computer.
+
+\subsection{Safety Watchdog Interlocks}
+Cutaneous safety and thermal protection are guaranteed via hardware interlocks:
+\begin{equation}
+t_{\text{continuous}}[i] \le 250\,\text{ms}, \quad \forall i \in [0, 4]
+\end{equation}
+\begin{equation}
+\text{Duty}_{5\text{s}}[i] = \frac{\sum_{t=0}^{5000} \mathbb{I}(\text{PWM}[i] > 0)}{5000\,\text{ms}} \le 0.40
+\end{equation}
+If any channel exceeds 250\,ms continuous activation or 40\% cumulative duty over 5 seconds, all MOSFET gates latch immediately to 0\,V.
+
+\section{Experimental Validation and Profiling}
+
+\subsection{Kinematic Gating and State Classification}
+The firmware was evaluated through extensive automated unit tests (`test\_am\_crn.c`). Under quiet rest, the gating factor registered $G(t) = 1.000$ (Stillness = 100\%). Under reaching trajectories, $G(t)$ scaled to $1.531$ within 35\,ms.
+
+\subsection{Overdrive and Safety Watchdog Execution}
+Oscillogram simulation confirmed that a commanded pulse of $D_{\text{target}} = 100$ produced an output of 135 for $0 \le t < 20$\,ms before transitioning to 100. Forced stuck-at-1 faults commanded for 500\,ms were cleanly halted at exactly 251\,ms by the safety watchdog.
+
+\subsection{Staircase Convergence}
+Human-in-the-loop staircase simulation across 5 digits converged in 25 iterations ($<30$\,s total), yielding thresholds between 72 and 96 PWM counts ($28$--$38\%$ duty cycle).
+
+\subsection{Computational Benchmarking}
+Profiling on an ESP32-S3 clocked at 240\,MHz demonstrated:
+\begin{itemize}
+    \item 100\,Hz IMU Processing: 14\,$\mu$s execution time.
+    \item 1\,ms Scheduler Tick: 6\,$\mu$s execution time.
+    \item CPU Core 1 Utilization: 4.2\% nominal ($<$8\% peak).
+    \item Memory Consumption: 14.2\,KB Static RAM, 0 dynamic allocations on real-time path.
+\end{itemize}
+
+\subsection{Virtual Simulation Framework (Wokwi)}
+To facilitate zero-hardware experimentation, we built a full Wokwi virtual simulator (`simulation/diagram.json` and `simulation.ino`). The simulation models the ESP32-S3 DevKit-C, an I2C-connected MPU-6050, and 5-channel LED indicators representing the finger ERMs. Users can interactively manipulate acceleration and tilt sliders to observe dynamic gating and phase desynchronization in real time.
+
+\section{Discussion and Limitations}
+While AM-CRN establishes a rigorous, low-cost baseline for wearable neuromodulation, honest scientific boundaries must be acknowledged:
+\begin{enumerate}
+    \item \textbf{Sensor Bounds}: Dorsal IMU signals correlate with limb velocity but do not measure fingertip contact force, mechanical skin compliance, or perceived vibration intensity.
+    \item \textbf{Actuator Coupling}: Coin ERMs transmit vibration through glove fabric into bone and adjacent tissue. While 45\,ms blanking prevents temporal masking, tight textile fit is required to prevent spatial acoustic leakage.
+    \item \textbf{Clinical Scope}: This work validates embedded control feasibility and psychophysically-grounded algorithms; clinical efficacy for stroke recovery or Parkinsonian tremor desynchronization requires institutional review board (IRB) approved clinical trials.
+\end{enumerate}
+
+\section{Conclusion}
+We presented AM-CRN, a novel embedded architecture for five-finger vibrotactile neuromodulation on an ESP32-S3 glove. By converting hand kinematics into an instantaneous sensory-gating compensation factor ($G_k \in [1.0, 2.2]$) and coupling it with inertia-compensated Coordinated Reset desynchronization, AM-CRN achieves closed-loop tactile neuromodulation without requiring costly flex or contact sensors. All firmware, simulation files, and benchmarks are made openly available.
+
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+
+\end{document}

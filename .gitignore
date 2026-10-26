@@ -1,0 +1,21 @@
+# Build artifacts and binaries
+*.o
+*.a
+*.so
+firmware/tests/test_am_crn
+
+# PlatformIO
+.pio/
+.pioenvs/
+.piolibdeps/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# System / Editor files
+.DS_Store
+*.swp
+*~
+.vscode/
+.idea/

@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "author": "AM-CRN Research Team",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "board-esp32-s3-devkitc-1", "id": "esp", "top": 0, "left": 0, "attrs": {} },
+    { "type": "wokwi-mpu6050", "id": "imu", "top": -120, "left": -180, "attrs": {} },
+    { "type": "wokwi-led", "id": "led_thumb", "top": -80, "left": 180, "attrs": { "color": "green", "label": "Thumb (GPIO4)" } },
+    { "type": "wokwi-led", "id": "led_index", "top": -40, "left": 180, "attrs": { "color": "blue", "label": "Index (GPIO5)" } },
+    { "type": "wokwi-led", "id": "led_middle", "top": 0, "left": 180, "attrs": { "color": "yellow", "label": "Middle (GPIO6)" } },
+    { "type": "wokwi-led", "id": "led_ring", "top": 40, "left": 180, "attrs": { "color": "orange", "label": "Ring (GPIO7)" } },
+    { "type": "wokwi-led", "id": "led_little", "top": 80, "left": 180, "attrs": { "color": "red", "label": "Little (GPIO15)" } },
+    { "type": "wokwi-resistor", "id": "r1", "top": -70, "left": 240, "attrs": { "value": "220" } },
+    { "type": "wokwi-resistor", "id": "r2", "top": -30, "left": 240, "attrs": { "value": "220" } },
+    { "type": "wokwi-resistor", "id": "r3", "top": 10, "left": 240, "attrs": { "value": "220" } },
+    { "type": "wokwi-resistor", "id": "r4", "top": 50, "left": 240, "attrs": { "value": "220" } },
+    { "type": "wokwi-resistor", "id": "r5", "top": 90, "left": 240, "attrs": { "value": "220" } }
+  ],
+  "connections": [
+    [ "esp:3V3", "imu:VCC", "red", [ "v0" ] ],
+    [ "esp:GND.1", "imu:GND", "black", [ "v0" ] ],
+    [ "esp:8", "imu:SDA", "green", [ "v0" ] ],
+    [ "esp:9", "imu:SCL", "blue", [ "v0" ] ],
+
+    [ "esp:4", "led_thumb:A", "green", [ "h20" ] ],
+    [ "led_thumb:C", "r1:1", "black", [ "h10" ] ],
+    [ "r1:2", "esp:GND.2", "black", [ "v20" ] ],
+
+    [ "esp:5", "led_index:A", "blue", [ "h20" ] ],
+    [ "led_index:C", "r2:1", "black", [ "h10" ] ],
+    [ "r2:2", "esp:GND.2", "black", [ "v20" ] ],
+
+    [ "esp:6", "led_middle:A", "yellow", [ "h20" ] ],
+    [ "led_middle:C", "r3:1", "black", [ "h10" ] ],
+    [ "r3:2", "esp:GND.2", "black", [ "v20" ] ],
+
+    [ "esp:7", "led_ring:A", "orange", [ "h20" ] ],
+    [ "led_ring:C", "r4:1", "black", [ "h10" ] ],
+    [ "r4:2", "esp:GND.2", "black", [ "v20" ] ],
+
+    [ "esp:15", "led_little:A", "red", [ "h20" ] ],
+    [ "led_little:C", "r5:1", "black", [ "h10" ] ],
+    [ "r5:2", "esp:GND.2", "black", [ "v20" ] ]
+  ],
+  "dependencies": {}
+}
