@@ -9,8 +9,10 @@ This directory contains the formal two-column research paper report for the **AM
 ---
 
 ## File Structure
-- [main.tex](file:///home/topfloorboss/Desktop/iot/paper/main.tex): Complete LaTeX research paper (including equations, two-column layout, and built-in TikZ vector diagrams for System Architecture and Timing).
+- [main.tex](file:///home/topfloorboss/Desktop/iot/paper/main.tex): Complete LaTeX research paper (including equations, two-column layout, BOM table, physical prototype figures, and built-in TikZ vector diagrams for System Architecture, Timing, and Driver Circuitry).
 - [references.bib](file:///home/topfloorboss/Desktop/iot/paper/references.bib): BibTeX bibliography with full citations for all peer-reviewed papers and patents.
+- `figures/`: Hardware prototype photographs and discrete electromechanical component images.
+- [main.pdf](file:///home/topfloorboss/Desktop/iot/paper/main.pdf): Compiled high-resolution 2-column research paper PDF.
 
 ---
 

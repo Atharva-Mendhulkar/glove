@@ -6,6 +6,7 @@
 \usepackage{tabularx}
 \usepackage{cite}
 \usepackage{graphicx}
+\usepackage{subcaption}
 \usepackage{hyperref}
 \usepackage{tikz}
 \usetikzlibrary{shapes.geometric, arrows.meta, positioning, calc, backgrounds, fit}
@@ -18,6 +19,17 @@
     citecolor=blue!70!black,
     urlcolor=blue!70!black
 }
+
+\renewcommand{\topfraction}{0.95}
+\renewcommand{\bottomfraction}{0.85}
+\renewcommand{\textfraction}{0.05}
+\renewcommand{\floatpagefraction}{0.85}
+\renewcommand{\dbltopfraction}{0.95}
+\renewcommand{\dblfloatpagefraction}{0.85}
+\setcounter{topnumber}{4}
+\setcounter{bottomnumber}{4}
+\setcounter{totalnumber}{8}
+\setcounter{dbltopnumber}{4}
 
 \title{\textbf{\Large AM-CRN: Adaptive Motion-Gated Coordinated Reset Neuromodulation\\for an Embedded Five-Finger Vibrotactile Glove}}
 
@@ -172,16 +184,204 @@ Table~\ref{tab:gaps} synthesizes the verified literature base and highlights six
 \subsection{Physical Components and Actuator Physics}
 \begin{enumerate}
     \item \textbf{Microcontroller}: Espressif ESP32-S3-WROOM-1 with 8\,MB Flash, 512\,KB SRAM, clocked at 240\,MHz. Hardware LEDC PWM timers operate at 5\,kHz with 8-bit resolution (256 duty steps).
-    \item \textbf{Actuators}: 5x coin-type Eccentric Rotating Mass (ERM) vibration motors (10\,mm diameter, 2.7\,mm thickness, Model 1027). The rotational frequency couples non-linearly with applied voltage ($\sim$150--220\,Hz across 2.5--3.3\,V). Mechanical rise time $t_{\text{rise}} \approx 35$\,ms and decay time $t_{\text{decay}} \approx 50$\,ms dictate that instantaneous square pulses are impossible without pre-emphasis overdrive.
+    \item \textbf{Actuators}: 5$\times$ coin-type Eccentric Rotating Mass (ERM) vibration motors (10\,mm diameter, 2.7\,mm thickness, Model 1027). The rotational frequency couples non-linearly with applied voltage ($\sim$150--220\,Hz across 2.0--2.7\,V, rated 2.3\,V nominal). Mechanical rise time $t_{\text{rise}} \approx 35$\,ms and decay time $t_{\text{decay}} \approx 50$\,ms dictate that instantaneous square pulses are impossible without pre-emphasis overdrive.
     \item \textbf{Dorsal 6-Axis IMU}: An MPU-6050 or ICM-42670 MEMS sensor mounted on the glove backplate, sampled at 100\,Hz over I2C Fast-Mode (400\,kHz). Full-scale ranges are configured for $\pm 4g$ and $\pm 1000^\circ/\text{s}$.
 \end{enumerate}
 
-\subsection{Drive Circuitry and Flyback Protection}
-Each coin ERM is driven by an individual low-threshold N-channel MOSFET (AO3400A, $V_{\text{DS}} = 30\text{V}, I_{\text{D}} = 5.7\text{A}, R_{\text{DS(ON)}} \approx 28\text{ m}\Omega$). 
-Because inductive DC motors generate severe negative voltage spikes upon de-energization ($V = -L \frac{di}{dt}$), a fast switching Schottky diode (1N5819 / BAT54) is placed in anti-parallel across each motor terminal to clamp inductive transients. A $100\,\Omega$ gate resistor prevents high-frequency ringing, while a $10\,\text{k}\Omega$ pull-down resistor ensures the MOSFET remains completely off during ESP32-S3 boot sequencing.
+\begin{figure*}[t]
+\centering
+\begin{subfigure}[b]{0.19\textwidth}
+    \centering
+    \includegraphics[width=\textwidth, height=2.5cm, keepaspectratio]{figures/esp32_s3.jpg}
+    \caption{ESP32-S3 Dev Board}
+    \label{subfig:esp32}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.19\textwidth}
+    \centering
+    \includegraphics[width=\textwidth, height=2.5cm, keepaspectratio]{figures/coin_motor.jpg}
+    \caption{2.3\,V Coin ERM Motor}
+    \label{subfig:motor}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.19\textwidth}
+    \centering
+    \includegraphics[width=\textwidth, height=2.5cm, keepaspectratio]{figures/irlz44n_mosfet.jpg}
+    \caption{IRLZ44N MOSFET}
+    \label{subfig:mosfet}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.19\textwidth}
+    \centering
+    \includegraphics[width=\textwidth, height=2.5cm, keepaspectratio]{figures/schottky_diode.jpg}
+    \caption{1N5819 Schottky Diode}
+    \label{subfig:diode}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.19\textwidth}
+    \centering
+    \includegraphics[width=\textwidth, height=2.5cm, keepaspectratio]{figures/capacitor.jpg}
+    \caption{Decoupling Capacitors}
+    \label{subfig:caps}
+\end{subfigure}
+\caption{Discrete electromechanical components utilized in the AM-CRN glove: (a) Espressif ESP32-S3 dual-core microcontroller; (b) miniature Model 1027 coin eccentric rotating mass (ERM) actuator; (c) logic-level IRLZ44N N-channel power MOSFET (TO-220); (d) 1N5819 fast-recovery Schottky clamping diode; (e) bulk electrolytic and MLCC ceramic filtering capacitors.}
+\label{fig:components}
+\end{figure*}
 
-\subsection{Decoupling and Power Integrity}
-Coin ERMs draw transient stall/start currents exceeding 120\,mA each. A bulk $10\,\mu\text{F}$ low-ESR tantalum capacitor alongside individual $100\,\text{nF}$ multi-layer ceramic capacitors (MLCC) are situated immediately adjacent to the motor power rail to prevent transient voltage sags on the ESP32-S3 3.3\,V analog reference line.
+\begin{table*}[t]
+\centering
+\caption{Complete Bill of Materials (BOM) for 5-Channel Vibrotactile Haptic Glove}
+\label{tab:bom}
+\small
+\begin{tabularx}{\textwidth}{r p{4.2cm} c p{6.8cm} X}
+\toprule
+\textbf{\#} & \textbf{Component} & \textbf{Qty} & \textbf{Technical Specification} & \textbf{Role / Subsystem} \\
+\midrule
+1  & ESP32-S3 development board      & 1     & Xtensa dual-core 240\,MHz, 512\,KB SRAM, 8\,MB Flash, 5\,kHz LEDC PWM & Main system controller \\
+2  & Coin vibration motors           & 5     & Model 1027 pancake ERM, 10\,mm $\times$ 2.7\,mm, rated 2.3\,V, 150--220\,Hz & Cutaneous vibrotactile stimulator (1 per finger) \\
+3  & IRLZ44N N-channel MOSFET        & 5     & Logic-level gate ($V_{\text{GS(th)}} = 1.0$--$2.0$\,V), $V_{\text{DS}} = 55$\,V, $I_{\text{D}} = 47$\,A, TO-220 & Low-side motor power switch (1 per motor) \\
+4  & Gate series resistors           & 5     & $220\,\Omega$, $\frac{1}{4}$\,W metal film ($\pm 5\%$) & Damps GPIO switching inrush and LC ringing \\
+5  & Gate pulldown resistors         & 5     & $10\,\text{k}\Omega$, $\frac{1}{4}$\,W carbon/metal film & Bleeds gate charge; prevents floating ON at boot \\
+6  & Schottky flyback diodes         & 5     & 1N5819, $V_R = 40$\,V, $I_F = 1$\,A, low $V_F \le 0.45$\,V & Clamps inductive de-energization back-EMF \\
+7  & Electrolytic bulk capacitor     & 1     & $100\,\mu\text{F}$, radial leaded, rated $\ge 6.3$\,V (low-ESR) & Absorbs transient supply sags during concurrent startup \\
+8  & Ceramic bypass capacitor        & 1     & $100\,\text{nF}$ multi-layer ceramic (MLCC) & Filters high-frequency PWM switching harmonics \\
+9  & Regulated motor power supply    & 1     & 2.3\,V DC output, continuous $\ge 1.0$\,A peak current capacity & Dedicated isolated actuator drive rail \\
+10 & Main power switch               & 1     & SPST rocker/toggle switch, rated for DC supply voltage/current & Master circuit disconnect \\
+11 & Battery holder / battery pack   & 1     & 2$\times$AA or 1S LiPo pack with inline linear/buck regulator & Portable DC energy reservoir \\
+12 & ESP32 USB cable                 & 1     & Shielded USB Type-C / Micro-B data cable & Program flashing and serial telemetry logging \\
+13 & Solderless breadboard           & 1     & 830 tie-point dual-bus breadboard & Modular rapid prototyping testbed \\
+14 & Solid jumper wires              & 1 set & 22 AWG male-to-male and male-to-female DuPont leads & Inter-module and bus distribution \\
+15 & Flexible hookup wire            & 5 pr. & 28 AWG multi-strand flexible silicone wire & Low-mechanical-impedance fingertip routing \\
+16 & Wearable glove substrate        & 1     & Form-fitting cotton/synthetic glove & Anatomical mounting of distal actuators \\
+17 & Heat-shrink insulation tubing   & Req.  & Polyolefin heat-shrink sleeves (1.5\,mm / 2.5\,mm) & Terminal insulation and joint strain relief \\
+\bottomrule
+\end{tabularx}
+\end{table*}
+
+\subsection{Bill of Materials and Channel Architecture}
+The physical implementation of the five-channel tactile glove is engineered for component accessibility, low bill-of-materials cost, and robust transient handling. Table~\ref{tab:bom} itemizes the complete Bill of Materials across all 17 discrete component classes. Discrete component photographs sourced from standard electronics references are displayed in Figure~\ref{fig:components}.
+
+\subsubsection{Per-Motor Component Count}
+Each individual digit (Thumb, Index, Middle, Ring, Little) requires an identical, isolated commutation circuit:
+\begin{itemize}
+    \item $1 \times$ IRLZ44N N-channel power MOSFET ($5 \times$ total across glove)
+    \item $1 \times 220\,\Omega$ gate current-limiting resistor ($5 \times$ total)
+    \item $1 \times 10\,\text{k}\Omega$ gate pulldown resistor ($5 \times$ total)
+    \item $1 \times$ 1N5819 Schottky flyback diode ($5 \times$ total)
+    \item $1 \times 2.3$\,V Model 1027 coin vibration motor ($5 \times$ total)
+\end{itemize}
+
+\subsubsection{Shared Power Components}
+To minimize glove weight and avoid redundant passive components, the power distribution system consolidates shared infrastructure:
+\begin{itemize}
+    \item One regulated 2.3\,V DC supply bus providing stable motor drive voltage.
+    \item One $100\,\mu\text{F}$ radial electrolytic capacitor serving as a bulk energy reservoir across the 2.3\,V rail.
+    \item One $100\,\text{nF}$ ceramic bypass capacitor situated directly adjacent to the motor supply rails for high-frequency decoupling.
+    \item One SPST master rocker switch providing an immediate manual hardware shutoff.
+    \item One unified star-ground topology uniting the motor power return, ESP32-S3 digital ground, and MOSFET sources.
+\end{itemize}
+
+\subsection{Drive Circuitry, Flyback Clamping, and Decoupling}
+Each coin ERM is operated as a low-side switched inductive load. Figure~\ref{fig:schematic} depicts the circuit topology for an individual finger channel. 
+Because the coin motor's internal winding constitutes an inductor ($L_{\text{motor}} \approx 120\,\mu\text{H}$), abrupt cessation of drive current ($di/dt < 0$) generates a severe inductive flyback voltage spike:
+\begin{equation}
+V_{\text{spike}} = -L \frac{di}{dt}
+\end{equation}
+Without clamping, $V_{\text{spike}}$ easily exceeds 30\,V, puncturing the MOSFET's drain-source junction. A 1N5819 Schottky barrier diode is connected in anti-parallel across the motor terminals (cathode to +2.3\,V rail, anode to MOSFET drain). With a forward turn-on time under 10\,ns and a forward voltage drop $V_F \le 0.45$\,V, the diode recirculates inductive decay energy harmlessly through the motor coil.
+
+The $220\,\Omega$ gate resistor prevents output-stage ringing caused by the parasitic inductance of breadboard jumper wires and the MOSFET input capacitance ($C_{\text{iss}} \approx 1700$\,pF for the IRLZ44N), while capping transient peak pin currents below the ESP32-S3's 40\,mA absolute maximum GPIO limit. The $10\,\text{k}\Omega$ pulldown resistor guarantees a deterministic low state ($V_{\text{GS}} = 0$\,V) during power-on reset, firmware flashing, and deep sleep when the microcontroller pins float in high-impedance (Hi-Z) input mode.
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+    x=1.0cm, y=1.0cm,
+    font=\footnotesize,
+    comp/.style={rectangle, draw=black, thick, fill=white, minimum width=0.8cm, minimum height=0.4cm, font=\scriptsize},
+    node distance=1.2cm
+]
+    % Power Rails
+    \draw[thick, red!80!black] (0.0, 3.2) -- (4.2, 3.2) node[right, font=\bfseries\scriptsize, text=red!80!black] {+2.3\,V Motor Rail};
+    \draw[thick, black!80] (0.0, -0.6) -- (4.2, -0.6) node[right, font=\bfseries\scriptsize] {Common GND};
+
+    % Decoupling Capacitors on left
+    \draw (0.6, 3.2) -- (0.6, 2.5);
+    \draw (0.3, 2.5) -- (0.9, 2.5);
+    \draw (0.3, 2.3) -- (0.9, 2.3);
+    \draw (0.6, 2.3) -- (0.6, 1.4);
+    \node[right, font=\tiny] at (0.9, 2.4) {$100\,\mu\text{F}$};
+    \draw (0.3, 1.4) -- (0.9, 1.4);
+    \draw (0.3, 1.2) -- (0.9, 1.2);
+    \draw (0.6, 1.2) -- (0.6, -0.6);
+    \node[right, font=\tiny] at (0.9, 1.3) {$100\,\text{nF}$};
+
+    % ESP32 GPIO Input
+    \node[left, font=\scriptsize\bfseries] (gpio) at (0.4, 0.6) {GPIO ($i$)};
+    \draw[->, thick] (gpio) -- (1.0, 0.6);
+
+    % Gate Resistor
+    \draw[thick] (1.0, 0.6) -- (1.3, 0.6);
+    \draw[thick, fill=white] (1.3, 0.45) rectangle (2.1, 0.75) node[midway, font=\tiny] {$220\,\Omega$};
+    \draw[thick] (2.1, 0.6) -- (2.7, 0.6);
+
+    % Pulldown Resistor
+    \draw[thick] (2.5, 0.6) -- (2.5, 0.3);
+    \draw[thick, fill=white] (2.35, -0.2) rectangle (2.65, 0.3) node[midway, rotate=90, font=\tiny] {$10\,\text{k}\Omega$};
+    \draw[thick] (2.5, -0.2) -- (2.5, -0.6);
+    \filldraw[black] (2.5, 0.6) circle (1.5pt);
+    \filldraw[black] (2.5, -0.6) circle (1.5pt);
+
+    % MOSFET
+    \draw[thick] (2.7, 0.6) -- (3.0, 0.6);
+    \draw[very thick] (3.0, 0.2) -- (3.0, 1.0); % Gate bar
+    \draw[very thick] (3.2, 0.2) -- (3.2, 1.0); % Channel bar
+    \draw[thick] (3.2, 0.9) -- (3.5, 0.9) -- (3.5, 1.5); % Drain
+    \draw[thick] (3.2, 0.3) -- (3.5, 0.3) -- (3.5, -0.6); % Source
+    \filldraw[black] (3.5, -0.6) circle (1.5pt);
+    \node[right, font=\tiny\bfseries] at (3.5, 0.6) {IRLZ44N};
+
+    % Motor + Diode
+    \draw[thick] (3.5, 1.5) -- (3.1, 1.5) -- (3.1, 2.0);
+    \draw[thick] (3.5, 1.5) -- (3.9, 1.5) -- (3.9, 2.0);
+
+    % Motor Circle
+    \draw[thick, fill=blue!10] (3.1, 2.3) circle (0.35cm) node[font=\tiny\bfseries] {M};
+    \draw[thick] (3.1, 2.65) -- (3.1, 3.2);
+
+    % Schottky Diode
+    \draw[thick] (3.9, 2.0) -- (3.9, 2.15);
+    \draw[thick, fill=black!20] (3.65, 2.15) -- (4.15, 2.15) -- (3.9, 2.5) -- cycle;
+    \draw[thick] (3.65, 2.5) -- (4.15, 2.5); % Cathode bar
+    \draw[thick] (3.9, 2.5) -- (3.9, 3.2);
+    \node[right, font=\tiny] at (4.1, 2.35) {1N5819};
+
+    \filldraw[black] (3.5, 3.2) circle (1.5pt);
+    \draw[thick] (3.1, 3.2) -- (3.9, 3.2);
+\end{tikzpicture}
+\caption{Single-finger motor driver schematic with low-side IRLZ44N MOSFET, anti-parallel 1N5819 Schottky clamping diode, $220\,\Omega$ gate inrush limiter, $10\,\text{k}\Omega$ pulldown, and power decoupling stage.}
+\label{fig:schematic}
+\end{figure}
+
+\subsection{Physical Implementation and Prototyping Testbed}
+The fully assembled experimental testbed is shown in Figure~\ref{fig:prototype}. The prototype consists of a form-fitting glove substrate carrying 5 Model 1027 coin ERMs affixed to the palmar/distal pads of the thumb, index, middle, ring, and little fingers. Actuator leads are bundled along the dorsal digit axes using 28\,AWG flexible stranded silicone hookup wire wrapped in polyolefin heat-shrink sleeves to minimize mechanical stiffness and permit unhindered finger articulation.
+
+The wiring harnesses interface directly with the breadboard testbed. The central ESP32-S3 development board coordinates 5 discrete driver columns, each comprising an IRLZ44N MOSFET, a 1N5819 flyback diode, and gate passive elements. Power distribution incorporates a dedicated master SPST switch, a 100\,$\mu\text{F}$ electrolytic capacitor, and an MLCC ceramic capacitor positioned immediately adjacent to the motor power rails to prevent switching transients from perturbing the microcontroller.
+
+\begin{figure}[!ht]
+\centering
+\includegraphics[width=0.92\columnwidth, height=7.2cm, keepaspectratio]{figures/prototype_glove.jpg}
+\caption{Completed AM-CRN experimental apparatus. Top: form-fitting glove instrumented with 5 distal coin ERM motors (Model 1027) with strain-relieved flexible silicone wiring. Bottom: dual-rail breadboard assembly hosting the central ESP32-S3 SoC, discrete IRLZ44N power MOSFET commutation stages, 1N5819 Schottky flyback clamping diodes, bulk decoupling capacitors, master hardware power switch, and battery supply interface.}
+\label{fig:prototype}
+\end{figure}
+
+\subsection{Hardware Verification and Pre-Power Safety Protocol}
+To safeguard the low-voltage actuators, power silicon, and microcontroller from electrical damage, the prototype was subjected to five mandatory pre-power verification checks:
+\begin{enumerate}
+    \item \textbf{Supply Current Headroom}: Coin ERMs draw approximately $85$\,mA steady-state but up to $120$--$140$\,mA transient stall/startup current each. The power supply was rated for $\ge 1.0$\,A continuous output to guarantee voltage stability when all 5 channels initiate concurrently ($5 \times 120\,\text{mA} = 600$\,mA peak).
+    \item \textbf{MOSFET Gate Enhancement at 3.3\,V}: Although the IRLZ44N is a logic-level MOSFET with a threshold voltage $V_{\text{GS(th)}} \in [1.0, 2.0]$\,V, full channel enhancement ($R_{\text{DS(ON)}} \le 0.028\,\Omega$) typically requires $V_{\text{GS}} \ge 5$\,V. At 3.3\,V gate drive from the ESP32-S3, $R_{\text{DS(ON)}}$ rises moderately to $\sim 0.045\,\Omega$. With a single-motor continuous current of 85\,mA, conduction loss remains under $0.32$\,mW, precluding thermal runaway without needing external heatsinking.
+    \item \textbf{Diode Polarity Verification}: The cathode (silver stripe) of each 1N5819 diode was strictly oriented toward the motor's positive ($+2.3$\,V) rail. Accidental reversal would place the diode in forward bias directly across the DC supply, creating an immediate dead short that would destroy the diode and overheat power traces.
+    \item \textbf{Star-Ground Topology}: All 5 MOSFET source pins, the ESP32-S3 ground pins, and the negative power supply return lead were routed to a single central star-ground junction. This topology prevents motor commutation return currents from flowing through the sensitive microcontroller ground reference, eliminating digital brownouts and ADC noise.
+    \item \textbf{Overvoltage Protection}: Coin ERMs are rated strictly for 2.3\,V nominal operation (2.7\,V absolute maximum). Under no circumstance is raw battery voltage (e.g., 3.7\,V--4.2\,V LiPo) applied directly across the motor coils. An adjustable low-dropout (LDO) regulator ensures a tightly regulated 2.3\,V ceiling, extending actuator mechanical bearing life.
+\end{enumerate}
 
 \section{Firmware Engineering and Algorithmic Formulation}
 
