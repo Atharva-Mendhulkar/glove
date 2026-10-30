@@ -13,22 +13,22 @@
 
 // Hardware Pin Configuration for 5 ERM Vibration Motors (IRLZ44N MOSFET Gates)
 static const uint8_t MOTOR_PINS[NUM_FINGERS] = {
-    4,  // Thumb  - GPIO4  (LEDC Ch 0)
-    5,  // Index  - GPIO5  (LEDC Ch 1)
-    6,  // Middle - GPIO6  (LEDC Ch 2)
-    7,  // Ring   - GPIO7  (LEDC Ch 3)
-    15  // Little - GPIO15 (LEDC Ch 4)
+    4,  // Motor 1 - GPIO4  (LEDC Ch 0)
+    6,  // Motor 2 - GPIO6  (LEDC Ch 1)
+    8,  // Motor 3 - GPIO8  (LEDC Ch 2)
+    5,  // Motor 4 - GPIO5  (LEDC Ch 3)
+    7   // Motor 5 - GPIO7  (LEDC Ch 4)
 };
 
 static const uint32_t LEDC_FREQ_HZ = 5000; // 5 kHz PWM (above motor acoustic resonance)
 static const uint8_t  LEDC_RES_BITS = 8;   // 8-bit duty (0 - 255)
 
 static const char* FINGER_NAMES[NUM_FINGERS] = {
-    "Thumb (GPIO4)",
-    "Index (GPIO5)",
-    "Middle (GPIO6)",
-    "Ring (GPIO7)",
-    "Little (GPIO15)"
+    "Motor 1 (GPIO4)",
+    "Motor 2 (GPIO6)",
+    "Motor 3 (GPIO8)",
+    "Motor 4 (GPIO5)",
+    "Motor 5 (GPIO7)"
 };
 
 static const char* MOTION_STATE_NAMES[] = {
@@ -48,6 +48,7 @@ static int g_imu_sda = 3;  // User specified: SDA on GPIO 3
 static int g_imu_scl = 10; // User specified: SCL on GPIO 10
 static bool g_imu_detected = false;
 static bool g_stream_imu = false;
+static bool g_continuous_running = true;
 
 struct ImuCalibration {
     float gyro_bias_x;
@@ -474,35 +475,80 @@ void run_full_i2c_scan() {
     Serial.println("=======================================================\n");
 }
 
+// Direct solid DC gate drive: logic HIGH provides full 3.3V saturation to IRLZ44N gate
+static inline void drive_motor_pin(uint8_t pin, uint8_t duty) {
+    if (duty > 0) {
+        digitalWrite(pin, HIGH);
+    } else {
+        digitalWrite(pin, LOW);
+    }
+}
+
 // ============================================================================
 // HARDWARE TEST ROUTINES
 // ============================================================================
+
+void run_gpio_pin_scanner() {
+    Serial.println("\n*******************************************************");
+    Serial.println("  AM-CRN ALL-GPIO PIN SCANNER (SLOW & CLEAR MODE)");
+    Serial.println("*******************************************************");
+    Serial.println("Testing candidate GPIO pins with 1.5 seconds ON and 1.0s pause.");
+    Serial.println("FEEL YOUR MOTORS: Note the GPIO number whenever a motor buzzes:\n");
+
+    const uint8_t SCAN_PINS[] = {1, 2, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16, 17, 18, 21, 38, 39, 40, 41, 42, 47, 48};
+    const uint8_t NUM_SCAN = sizeof(SCAN_PINS) / sizeof(SCAN_PINS[0]);
+
+    for (uint8_t i = 0; i < NUM_SCAN; i++) {
+        uint8_t pin = SCAN_PINS[i];
+        if (pin == 3 || pin == 10) continue; // Skip IMU pins
+        Serial.printf("[SCAN %2u/%2u] >>> GPIO %-2u is NOW ON (Buzzing 1.5s) <<< ... ", i + 1, NUM_SCAN, pin);
+        pinMode(pin, OUTPUT);
+        digitalWrite(pin, HIGH);
+        delay(1500);
+        digitalWrite(pin, LOW);
+        Serial.println("OFF");
+        delay(800);
+    }
+    Serial.println("\n*******************************************************");
+    Serial.println("  SCAN FINISHED! Which GPIO numbers buzzed?");
+    Serial.println("*******************************************************\n");
+
+    // Restore configured motor pins to output
+    for (uint8_t i = 0; i < NUM_FINGERS; i++) {
+        pinMode(MOTOR_PINS[i], OUTPUT);
+        digitalWrite(MOTOR_PINS[i], LOW);
+    }
+}
 
 void run_hardware_sweep_test() {
     Serial.println("\n=======================================================");
     Serial.println("  AM-CRN GLOVE: 5-MOTOR HARDWARE STARTUP SWEEP TEST");
     Serial.println("=======================================================");
+    Serial.println("[NOTICE] Driving Solid 3.3V DC to MOSFET gates for maximum torque.");
+    Serial.println("[NOTICE] Verify that your RED ROCKER POWER SWITCH is ON (1)!");
     for (uint8_t i = 0; i < NUM_FINGERS; i++) {
-        Serial.printf("[TEST] -> Testing Motor %u: %s (ON for 400ms)...\n", i + 1, FINGER_NAMES[i]);
-        ledcWrite(MOTOR_PINS[i], 180);
-        delay(400);
-        ledcWrite(MOTOR_PINS[i], 0);
-        delay(100);
+        Serial.printf("[TEST] -> Testing Motor %u: %s (SOLID ON for 800ms)...\n", i + 1, FINGER_NAMES[i]);
+        digitalWrite(MOTOR_PINS[i], HIGH);
+        delay(800);
+        digitalWrite(MOTOR_PINS[i], LOW);
+        delay(200);
     }
-    Serial.println("[TEST] -> Testing ALL 5 MOTORS together (ON for 400ms)...");
-    for (uint8_t i = 0; i < NUM_FINGERS; i++) ledcWrite(MOTOR_PINS[i], 180);
-    delay(400);
-    for (uint8_t i = 0; i < NUM_FINGERS; i++) ledcWrite(MOTOR_PINS[i], 0);
-    delay(200);
+    Serial.println("[TEST] -> Testing ALL MOTORS together (SOLID ON for 1500ms)...");
+    for (uint8_t i = 0; i < NUM_FINGERS; i++) digitalWrite(MOTOR_PINS[i], HIGH);
+    delay(1500);
+    for (uint8_t i = 0; i < NUM_FINGERS; i++) digitalWrite(MOTOR_PINS[i], LOW);
+    delay(300);
     Serial.println("=======================================================");
     Serial.println("  COMMANDS AVAILABLE IN SERIAL TERMINAL:");
+    Serial.println("  * 'r' : Toggle CONTINUOUS RUNNING mode (all motors vibrating)");
+    Serial.println("  * 'c' : Coordinated Reset therapeutic pulse mode");
+    Serial.println("  * 'p' : Run slow GPIO pin scanner to locate all motors");
     Serial.println("  * 'i' : Toggle LIVE 10 Hz IMU kinematic stream");
     Serial.println("  * 'k' : Run Dorsal IMU calibration (zero-bias & 1.0g)");
     Serial.println("  * 'w' : Run comprehensive I2C bus/pin scanner");
-    Serial.println("  * '1'-'5': Pulse individual finger motor");
+    Serial.println("  * '1'-'5': Pulse individual finger motor (1.5 sec)");
     Serial.println("  * 't' : Re-run 5-motor sweep test");
-    Serial.println("  * 'a' : All motors ON, 's' : Motors OFF / Standby");
-    Serial.println("  * 'c' : Coordinated Reset therapeutic mode");
+    Serial.println("  * 'a' : All motors ON (4 sec), 's' : Motors OFF / Standby");
     Serial.println("=======================================================\n");
 }
 
@@ -515,14 +561,12 @@ void setup() {
     delay(300);
     Serial.println("\n[AM-CRN] Initializing ESP32-S3 Five-Finger Neuromodulation Glove...");
 
-    // 1. Initialize PWM LEDC Channels
+    // 1. Initialize Direct Digital GPIO Outputs (Solid 3.3V Logic Drive for IRLZ44N)
     for (uint8_t i = 0; i < NUM_FINGERS; i++) {
         pinMode(MOTOR_PINS[i], OUTPUT);
         digitalWrite(MOTOR_PINS[i], LOW);
-        ledcAttach(MOTOR_PINS[i], LEDC_FREQ_HZ, LEDC_RES_BITS);
-        ledcWrite(MOTOR_PINS[i], 0);
     }
-    Serial.println("[AM-CRN] 5x IRLZ44N MOSFET LEDC channels initialized (5 kHz, 8-bit).");
+    Serial.println("[AM-CRN] 5x IRLZ44N MOSFET gate pins initialized (Solid Push-Pull DC).");
 
     // 2. Run Hardware POST Motor Sweep
     run_hardware_sweep_test();
@@ -539,7 +583,7 @@ void setup() {
     am_crn_system_init(&g_am_crn);
     uint32_t now_ms = millis();
     am_crn_system_set_mode(&g_am_crn, MODE_COORDINATED_RESET, now_ms);
-    Serial.println("[AM-CRN] AM-CRN System Online. Mode: Coordinated Reset.");
+    Serial.println("[AM-CRN] AM-CRN System Online. Starting in CONTINUOUS MOTOR RUNNING mode!");
 }
 
 void loop() {
@@ -551,10 +595,16 @@ void loop() {
         char ch = Serial.read();
         if (ch >= '1' && ch <= '5') {
             uint8_t idx = ch - '1';
-            Serial.printf("[MANUAL] Buzzing Motor %u (%s) for 1 second...\n", idx + 1, FINGER_NAMES[idx]);
-            ledcWrite(MOTOR_PINS[idx], 190);
-            delay(1000);
-            ledcWrite(MOTOR_PINS[idx], 0);
+            Serial.printf("[MANUAL] Buzzing Motor %u (%s) for 1.5 seconds...\n", idx + 1, FINGER_NAMES[idx]);
+            digitalWrite(MOTOR_PINS[idx], HIGH);
+            delay(1500);
+            digitalWrite(MOTOR_PINS[idx], LOW);
+        } else if (ch == 'r' || ch == 'R') {
+            g_continuous_running = !g_continuous_running;
+            Serial.printf("[MODE] Continuous Motor Running Mode: %s\n",
+                          g_continuous_running ? "ENABLED (All Motors Vibrating)" : "DISABLED (Coordinated Reset Active)");
+        } else if (ch == 'p' || ch == 'P') {
+            run_gpio_pin_scanner();
         } else if (ch == 'i' || ch == 'I') {
             g_stream_imu = !g_stream_imu;
             Serial.printf("[STREAM] Live IMU telemetry stream: %s\n", g_stream_imu ? "ENABLED (10 Hz)" : "DISABLED");
@@ -565,17 +615,19 @@ void loop() {
         } else if (ch == 't' || ch == 'T') {
             run_hardware_sweep_test();
         } else if (ch == 'a' || ch == 'A') {
-            Serial.println("[MANUAL] All 5 motors ON (buzzing 2 seconds)...");
-            for (uint8_t i = 0; i < NUM_FINGERS; i++) ledcWrite(MOTOR_PINS[i], 190);
-            delay(2000);
-            for (uint8_t i = 0; i < NUM_FINGERS; i++) ledcWrite(MOTOR_PINS[i], 0);
+            Serial.println("[MANUAL] All motors ON (buzzing 4 seconds)...");
+            for (uint8_t i = 0; i < NUM_FINGERS; i++) digitalWrite(MOTOR_PINS[i], HIGH);
+            delay(4000);
+            for (uint8_t i = 0; i < NUM_FINGERS; i++) digitalWrite(MOTOR_PINS[i], LOW);
         } else if (ch == 'c' || ch == 'C') {
+            g_continuous_running = false;
             Serial.println("[MODE] Coordinated Reset desynchronization mode active.");
             am_crn_system_set_mode(&g_am_crn, MODE_COORDINATED_RESET, millis());
         } else if (ch == 's' || ch == 'S') {
+            g_continuous_running = false;
             Serial.println("[MODE] Standby mode (motors off).");
             am_crn_system_set_mode(&g_am_crn, MODE_STANDBY, millis());
-            for (uint8_t i = 0; i < NUM_FINGERS; i++) ledcWrite(MOTOR_PINS[i], 0);
+            for (uint8_t i = 0; i < NUM_FINGERS; i++) digitalWrite(MOTOR_PINS[i], LOW);
         }
     }
 
@@ -594,11 +646,17 @@ void loop() {
         last_tick_ms = now_ms;
         am_crn_system_tick_1ms(&g_am_crn, now_ms);
 
-        // Dispatch updated PWM duties to hardware LEDC timers
+        // Dispatch updated duties to hardware pins
         uint8_t duties[NUM_FINGERS];
-        am_crn_system_get_motor_duties(&g_am_crn, duties);
-        for (uint8_t i = 0; i < NUM_FINGERS; i++) {
-            ledcWrite(MOTOR_PINS[i], duties[i]);
+        if (g_continuous_running) {
+            for (uint8_t i = 0; i < NUM_FINGERS; i++) {
+                drive_motor_pin(MOTOR_PINS[i], 255);
+            }
+        } else {
+            am_crn_system_get_motor_duties(&g_am_crn, duties);
+            for (uint8_t i = 0; i < NUM_FINGERS; i++) {
+                drive_motor_pin(MOTOR_PINS[i], duties[i]);
+            }
         }
     }
 
@@ -627,13 +685,19 @@ void loop() {
     if (!g_stream_imu && (now_ms - g_last_telemetry_ms >= 350)) {
         g_last_telemetry_ms = now_ms;
         uint8_t duties[NUM_FINGERS];
-        am_crn_system_get_motor_duties(&g_am_crn, duties);
         float gating = am_crn_system_get_gating_factor(&g_am_crn);
+        if (g_continuous_running) {
+            uint8_t run_duty = (uint8_t)constrain((int)(220.0f * gating), 180, 255);
+            for (uint8_t i = 0; i < NUM_FINGERS; i++) duties[i] = run_duty;
+        } else {
+            am_crn_system_get_motor_duties(&g_am_crn, duties);
+        }
         MotionState state = am_crn_system_get_motion_state(&g_am_crn);
         bool tripped = am_crn_system_is_safety_tripped(&g_am_crn);
         const KinematicFeatures* feat = motion_gating_get_features(&g_am_crn.motion_engine);
 
-        Serial.printf("[STATUS] State: %-10s | G(t): %.2f | Duties: [%3u %3u %3u %3u %3u] | Stillness: %.2f | Safety: %s | IMU: %s\n",
+        Serial.printf("[STATUS] Mode: %s | State: %-10s | G(t): %.2f | Duties: [%3u %3u %3u %3u %3u] | Stillness: %.2f | Safety: %s | IMU: %s\n",
+                      g_continuous_running ? "CONT_RUN" : "CR_DESYNC",
                       (state <= 5) ? MOTION_STATE_NAMES[state] : "UNKNOWN",
                       gating, duties[0], duties[1], duties[2], duties[3], duties[4],
                       feat ? feat->stillness_score : 1.0f,

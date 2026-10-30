@@ -30,21 +30,21 @@ void neuromod_init(NeuromodulationEngine* engine, const NeuromodulationConfig* c
     if (config) {
         engine->config = *config;
     } else {
-        engine->config.cr_base_frequency_hz = 1.6f;  // ~625 ms per desync cycle
-        engine->config.burst_duration_ms = 70;       // 70 ms pulse per finger
-        engine->config.min_inter_finger_ms = 45;     // 45 ms blanking to prevent masking
-        engine->config.jitter_range_ms = 15;         // +/- 15 ms phase jitter
-        engine->config.active_epoch_duration_s = 15; // 15 s stimulation
-        engine->config.pause_epoch_duration_s = 3;   // 3 s habituation pause
+        engine->config.cr_base_frequency_hz = 1.2f;  // ~800 ms per desync cycle
+        engine->config.burst_duration_ms = 120;      // 120 ms pulse per finger (strong, unmistakable buzz)
+        engine->config.min_inter_finger_ms = 35;     // 35 ms blanking gap
+        engine->config.jitter_range_ms = 10;         // +/- 10 ms phase jitter
+        engine->config.active_epoch_duration_s = 60; // 60 s active stimulation
+        engine->config.pause_epoch_duration_s = 2;   // 2 s pause
     }
 
     engine->lcg_seed = 0x12345678;
     for (uint8_t i = 0; i < NUM_FINGERS; i++) {
         engine->finger_sequence[i] = i;
         // Robust defaults ensuring sufficient starting torque for coin ERMs
-        engine->calibration.threshold_duty[i] = 90;        // ~35% PWM
-        engine->calibration.target_duty[i] = 170;          // ~67% PWM (firm vibrotactile sensation)
-        engine->calibration.max_comfortable_duty[i] = 230; // ~90% PWM
+        engine->calibration.threshold_duty[i] = 100;       // ~39% PWM
+        engine->calibration.target_duty[i] = 220;          // ~86% PWM (strong, noticeable vibration)
+        engine->calibration.max_comfortable_duty[i] = 250; // ~98% PWM
         engine->calibration.sensitivity_weight[i] = 1.0f;
     }
     engine->calibration.is_calibrated = false;

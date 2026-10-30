@@ -56,10 +56,48 @@ Embedded C99 / FreeRTOS vibrotactile neuromodulation system for an ESP32-S3 micr
 
 ---
 
+---
+
+## 💻 Software Architecture & IMU Calibration
+
+A dedicated, comprehensive technical manual is available in **[`SOFTWARE_README.md`](file:///home/topfloorboss/Desktop/iot/SOFTWARE_README.md)**.
+
+### Subsystem Pipeline:
+1. **Dorsal 6-Axis IMU Calibration**: Hardware I2C on **SDA = GPIO 3** and **SCL = GPIO 10** (`WHO_AM_I = 0x70`, MPU-6500). Stationary 250-sample calibration computes zero-rate gyro drift biases and normalizes Earth's gravity vector magnitude to exactly $1.000\,g$. Internal DLPF is set to **44 Hz** to filter out ERM motor mechanical vibrations.
+2. **Kinematic Sensory Gating ($G(t) \in [1.0, 2.2]$)**: Computes dynamic acceleration norms, jerk, and stillness scores at 100 Hz. Automatically scales motor pulse amplitude during active reaching to overcome physiological sensory gating.
+3. **Adaptive Coordinated Reset (AM-CRN)**: Delivers 120 ms desynchronizing pulses across all 5 digits using Fisher-Yates random sequence shuffling and a deterministic 32-bit LCG for uniform phase jitter ($\pm 10$\,ms). Alternates 60 s active stimulation blocks with 2 s habituation reset pauses.
+4. **Solid 3.3V DC Commutation**: Drives logic-level IRLZ44N MOSFET gates directly with solid 3.3V DC push-pull logic (`digitalWrite(pin, HIGH)`), eliminating gate RC attenuation and motor inductive throttling. Features a 25 ms mechanical overdrive kick.
+5. **Dual-Tier Safety Watchdog**: Hard 1 ms task enforcing $t_{\text{on}} \le 400$\,ms continuous limits and 5-second rolling duty cycle caps ($\le 60\%$), automatically latching 0V E-STOP on violations.
+
+---
+
+## 🎮 Interactive Serial Commands (115,200 Baud)
+
+Open the live monitor with:
+```bash
+uvx --offline platformio device monitor -b 115200 -p /dev/ttyUSB0
+```
+- **`r`** : Toggle **Continuous Motor Running Mode** (all motors vibrating continuously).
+- **`c`** : Switch to **Coordinated Reset Mode** (desynchronizing clinical pulse train).
+- **`p`** : Run **Slow All-GPIO Pin Scanner** (pulses each pin on the ESP32 for 1.5s to locate motor wiring).
+- **`1` – `5`** : Pulse an individual finger motor for 1.5 seconds at full 3.3V DC.
+- **`a`** : Buzz **all motors** together for 4.0 seconds.
+- **`s`** : Motors OFF / Standby.
+- **`i`** : Toggle live 10 Hz high-resolution IMU kinematic telemetry stream.
+- **`k`** : Re-run dorsal IMU 6-axis resting calibration.
+
+---
+
 ## 📂 Repository Layout
+- [`SOFTWARE_README.md`](file:///home/topfloorboss/Desktop/iot/SOFTWARE_README.md): Full software architecture, IMU calibration math, and scheduler guide.
 - `firmware/`: C99/FreeRTOS core engine, state machine, motion gating, and scheduler.
+  - `firmware/examples/esp32s3_glove_main.cpp`: Main firmware entry point, I2C driver, and hardware sweep.
+  - `firmware/src/motion_gating_engine.c`: Closed-loop sensory gating and motion classifier.
+  - `firmware/src/neuromodulation_engine.c`: AM-CRN pulse generator and Fisher-Yates desynchronizer.
+  - `firmware/src/erm_hardware_scheduler.c`: 1 ms hardware scheduler and dual safety watchdog.
+  - `firmware/src/am_crn_system.c`: Master subsystem orchestrator.
+- `tools/`: Python interactive calibration and telemetry suites (`imu_calibration_tool.py`, `glove_dashboard.py`).
 - `simulation/`: Full Wokwi virtual simulation diagram and code (`diagram.json`, `simulation.ino`).
 - `paper/`: Formal two-column IEEE-style research paper source (`main.tex`, `references.bib`, `figures/`, `main.pdf`).
 - `papers/`: Curated repository of 30 research papers, XML full texts, and critical summaries.
-- `tools/`: Python live dashboard and telemetry tools (`glove_dashboard.py`).
 - `AM_CRN_Research_Paper.pdf`: Compiled research paper report.

@@ -8,16 +8,16 @@ void erm_scheduler_init(ErmHardwareScheduler* sched, const ErmSchedulerConfig* c
     if (config) {
         sched->config = *config;
     } else {
-        sched->config.max_continuous_on_ms = 250;
-        sched->config.overdrive_duration_ms = 20;
+        sched->config.max_continuous_on_ms = 400;
+        sched->config.overdrive_duration_ms = 25;
         sched->config.overdrive_multiplier = 1.35f;
-        sched->config.max_rolling_duty_cycle = 0.40f; // 40% duty cap over 5s
-        // Default ESP32-S3 GPIO pins for AO3400A gates
-        sched->config.gpio_pins[0] = 4;  // Thumb
-        sched->config.gpio_pins[1] = 5;  // Index
-        sched->config.gpio_pins[2] = 6;  // Middle
-        sched->config.gpio_pins[3] = 7;  // Ring
-        sched->config.gpio_pins[4] = 15; // Little
+        sched->config.max_rolling_duty_cycle = 0.60f; // 60% duty cap over 5s
+        // Default ESP32-S3 GPIO pins for IRLZ44N gates
+        sched->config.gpio_pins[0] = 4;  // Motor 1 (GPIO 4)
+        sched->config.gpio_pins[1] = 6;  // Motor 2 (GPIO 6)
+        sched->config.gpio_pins[2] = 8;  // Motor 3 (GPIO 8)
+        sched->config.gpio_pins[3] = 5;  // Motor 4 (GPIO 5)
+        sched->config.gpio_pins[4] = 7;  // Motor 5 (GPIO 7)
     }
 }
 
