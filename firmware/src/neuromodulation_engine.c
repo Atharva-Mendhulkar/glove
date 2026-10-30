@@ -41,10 +41,10 @@ void neuromod_init(NeuromodulationEngine* engine, const NeuromodulationConfig* c
     engine->lcg_seed = 0x12345678;
     for (uint8_t i = 0; i < NUM_FINGERS; i++) {
         engine->finger_sequence[i] = i;
-        // Sensible population defaults prior to calibration
-        engine->calibration.threshold_duty[i] = 75;       // ~30% PWM
-        engine->calibration.target_duty[i] = 115;         // ~45% PWM
-        engine->calibration.max_comfortable_duty[i] = 190;// ~75% PWM
+        // Robust defaults ensuring sufficient starting torque for coin ERMs
+        engine->calibration.threshold_duty[i] = 90;        // ~35% PWM
+        engine->calibration.target_duty[i] = 170;          // ~67% PWM (firm vibrotactile sensation)
+        engine->calibration.max_comfortable_duty[i] = 230; // ~90% PWM
         engine->calibration.sensitivity_weight[i] = 1.0f;
     }
     engine->calibration.is_calibrated = false;
