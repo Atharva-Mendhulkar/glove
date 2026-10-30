@@ -44,8 +44,8 @@ static const char* MOTION_STATE_NAMES[] = {
 // DORSAL IMU CONFIGURATION & CALIBRATION DATA STRUCTURES
 // ============================================================================
 static uint8_t g_imu_addr = 0x68;
-static int g_imu_sda = 8;
-static int g_imu_scl = 9;
+static int g_imu_sda = 3;  // User specified: SDA on GPIO 3
+static int g_imu_scl = 10; // User specified: SCL on GPIO 10
 static bool g_imu_detected = false;
 static bool g_stream_imu = false;
 
@@ -145,8 +145,8 @@ static bool is_reserved_pin(int pin) {
     if (pin == 19 || pin == 20) return true;
     // 4. SPI Flash / Octal PSRAM bus
     if (pin >= 26 && pin <= 37) return true;
-    // 5. Critical Strapping pins
-    if (pin == 0 || pin == 3 || pin == 45 || pin == 46) return true;
+    // 5. Critical Strapping pins (note: GPIO 3 is intentionally unreserved as it is SDA)
+    if (pin == 0 || pin == 45 || pin == 46) return true;
 
     return false;
 }
@@ -159,6 +159,8 @@ struct I2CPinPair {
 };
 
 static const I2CPinPair CANDIDATE_PAIRS[] = {
+    {3, 10, "User Hardware Wiring (SDA=3, SCL=10)"},
+    {10, 3, "User Inverted Wiring (SDA=10, SCL=3)"},
     {38, 39, "Dorsal Port A (SDA=38, SCL=39)"},
     {39, 38, "Dorsal Port A Rev (SDA=39, SCL=38)"},
     {1, 2, "Dorsal Port B (SDA=1, SCL=2)"},
@@ -167,10 +169,8 @@ static const I2CPinPair CANDIDATE_PAIRS[] = {
     {18, 17, "Dorsal Port C Rev (SDA=18, SCL=17)"},
     {21, 47, "Dorsal Port D (SDA=21, SCL=47)"},
     {47, 21, "Dorsal Port D Rev (SDA=47, SCL=21)"},
-    {10, 11, "Dorsal Port E (SDA=10, SCL=11)"},
-    {11, 10, "Dorsal Port E Rev (SDA=11, SCL=10)"},
+    {11, 12, "Dorsal Port E (SDA=11, SCL=12)"},
     {12, 13, "Dorsal Port F (SDA=12, SCL=13)"},
-    {13, 12, "Dorsal Port F Rev (SDA=13, SCL=12)"},
     {40, 41, "Dorsal Port G (SDA=40, SCL=41)"},
     {41, 42, "Dorsal Port H (SDA=41, SCL=42)"}
 };
@@ -264,9 +264,9 @@ static bool auto_detect_imu() {
     }
 
     Serial.println("[IMU SCAN] Notice: IMU not responding on candidate pin pairs.");
-    Serial.println("[IMU SCAN] Initializing I2C fallback on SDA=GPIO8, SCL=GPIO9.");
-    Wire.begin(8, 9, 100000);
-    Wire.setTimeOut(20);
+    Serial.println("[IMU SCAN] Initializing I2C fallback on SDA=GPIO3, SCL=GPIO10.");
+    Wire.begin(3, 10, 100000);
+    Wire.setTimeOut(25);
     g_imu_detected = false;
     return false;
 }
@@ -433,7 +433,7 @@ void run_full_i2c_scan() {
     Serial.println("=======================================================");
     Serial.println("Probing GPIO combinations via non-blocking bitbang...");
 
-    const uint8_t TEST_GPIOS[] = {1, 2, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 21, 38, 39, 40, 41, 42, 47, 48};
+    const uint8_t TEST_GPIOS[] = {1, 2, 3, 9, 10, 11, 12, 13, 14, 16, 17, 18, 21, 38, 39, 40, 41, 42, 47, 48};
     const uint8_t NUM_TEST = sizeof(TEST_GPIOS) / sizeof(TEST_GPIOS[0]);
     bool any_found = false;
 
